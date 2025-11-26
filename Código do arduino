@@ -1,0 +1,160 @@
+#include <Servo.h>
+
+Servo meuServo;
+const int LDRE = A0;
+const int LDRD = A1;
+const int painel = A2;
+int leituraPainel = 0;
+int leituraD = 0;
+int leituraE = 0;
+int pos = 90;
+int margem = 10;
+
+// Valor mínimo para acionar os LEDs no modo automático
+const int triggerLevel = 400;
+
+// Configuração dos LEDs 
+// Os comandos 'A','B','C' serão mapeados para estes pinos
+const int LED_1_PIN = 13; // 'A'/'a' (Luz 1)
+const int LED_2_PIN = 12; // 'B'/'b' (Luz 2)
+const int LED_3_PIN = 10; // 'C'/'c' (Luz 3)
+const int LED_4_PIN = 9;  // 'D'/'d' (Luz 4)
+const int LED_5_PIN = 8;  // 'E'/'e' (Luz 5)
+
+// Controle de Modo 
+bool modoManual = false; // Começa no modo automático
+
+void setup() 
+{
+  Serial.begin(9600); // Inicia comunicação serial
+
+  // Configura Servo
+  meuServo.attach(6); // Servo no pino 6 (conforme correção do Arduino 2)
+  meuServo.write(pos);
+
+  // Configura todos os pinos de LED como SAÍDA
+  pinMode(LED_1_PIN, OUTPUT);
+  pinMode(LED_2_PIN, OUTPUT);
+  pinMode(LED_3_PIN, OUTPUT);
+  pinMode(LED_4_PIN, OUTPUT);
+  pinMode(LED_5_PIN, OUTPUT);
+
+  // Garante que todos comecem desligados
+  desligarTudo();
+}
+
+void loop() 
+{
+  // 1. Lógica do Servo (Sempre executa)
+  controlarServo();
+
+  // 2. Lógica de Comando Serial (Sempre executa)
+  checarComandosSerial();
+
+  // 3. Lógica dos LEDs (Depende do modo)
+  if (!modoManual) {
+    // MODO AUTOMÁTICO: Controla LEDs baseado no painel
+    controlarLEDsAutomatico();
+  }
+  // Se modoManual == true, os LEDs só mudam ao receber comandos via serial.
+
+  delay(100); // Pequeno atraso geral
+}
+
+/**
+ * Verifica e executa comandos recebidos da Web/Serial
+ */
+void checarComandosSerial() 
+{
+  if (Serial.available() > 0) {
+    char command = Serial.read();
+
+    // Comandos de LED (A-E) ativam o modo manual
+    switch (command) {
+      // Comandos Individuais
+      case 'A': modoManual = true; digitalWrite(LED_1_PIN, HIGH); break;
+      case 'a': modoManual = true; digitalWrite(LED_1_PIN, LOW);  break;
+      case 'B': modoManual = true; digitalWrite(LED_2_PIN, HIGH); break;
+      case 'b': modoManual = true; digitalWrite(LED_2_PIN, LOW);  break;
+      case 'C': modoManual = true; digitalWrite(LED_3_PIN, HIGH); break;
+      case 'c': modoManual = true; digitalWrite(LED_3_PIN, LOW);  break;
+      case 'D': modoManual = true; digitalWrite(LED_4_PIN, HIGH); break;
+      case 'd': modoManual = true; digitalWrite(LED_4_PIN, LOW);  break;
+      case 'E': modoManual = true; digitalWrite(LED_5_PIN, HIGH); break;
+      case 'e': modoManual = true; digitalWrite(LED_5_PIN, LOW);  break;
+
+      // Comandos Gerais (Master) também ativam o modo manual
+      case 'M': // Master ON
+        modoManual = true;
+        ligarTudo();
+        break;
+      case 'm': // Master OFF
+        modoManual = true;
+        desligarTudo();
+        break;
+
+      // NOVO Comando para MODO AUTOMÁTICO
+      case 'X':
+        modoManual = false;
+        // (Não precisa fazer nada, o loop() assumirá o controle)
+        break;
+    }
+  }
+}
+
+/**
+ * Controla os LEDs baseado na leitura do painel (Lógica do Arduino 2)
+ */
+void controlarLEDsAutomatico() {
+  leituraPainel = analogRead(painel);
+  Serial.print("Modo AUTO - Nível de tensão: ");
+  Serial.println(leituraPainel);
+
+  // Verifica se o nível de tensão está acima do valor de acionamento
+  if (leituraPainel >= triggerLevel) {
+    ligarTudo();
+  } else {
+    desligarTudo();
+  }
+}
+
+/**
+ * Controla a posição do Servo (Lógica do Arduino 2)
+ */
+void controlarServo() {
+  leituraD = analogRead(LDRD);
+  leituraE = analogRead(LDRE);
+
+  // Ajuste do servo conforme diferença entre os LDRs
+  if (leituraD > (leituraE + margem)) {
+    pos++;
+    if (pos > 180) pos = 180; // Limita o servo
+    meuServo.write(pos);
+    delay(150); // Delay para o servo se mover
+  } else if (leituraE > (leituraD + margem)) {
+    pos--;
+    if (pos < 0) pos = 0; // Limita o servo
+    meuServo.write(pos);
+    delay(150); // Delay para o servo se mover
+  }
+}
+
+// Funções Auxiliares 
+
+// Função para ligar todos os LEDs
+void ligarTudo() {
+  digitalWrite(LED_1_PIN, HIGH);
+  digitalWrite(LED_2_PIN, HIGH);
+  digitalWrite(LED_3_PIN, HIGH);
+  digitalWrite(LED_4_PIN, HIGH);
+  digitalWrite(LED_5_PIN, HIGH);
+}
+
+// Função para desligar todos os LEDs
+void desligarTudo() {
+  digitalWrite(LED_1_PIN, LOW);
+  digitalWrite(LED_2_PIN, LOW);
+  digitalWrite(LED_3_PIN, LOW);
+  digitalWrite(LED_4_PIN, LOW);
+  digitalWrite(LED_5_PIN, LOW);
+}
